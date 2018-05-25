@@ -6,3 +6,8 @@ from bs4 import BeautifulSoup  # осуществляет синтаксичес
 import csv  # осуществляет запись файла в формате CSV
 import tkinter  # создание интерфейса
 from tkinter.filedialog import *  # диалоговые окна
+global proxy1     #объвляем глобальную переменную для запоминания прокси на следующий проход цикла
+proxy1 = ''       #и приравниваем к пустому тексту
+BASE_URL = 'https://ajento.ru/'     #адрес сайта для парсинга
+massiv = []       #массив для хранения прокси
+4444
