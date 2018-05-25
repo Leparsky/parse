@@ -23,8 +23,9 @@ btn3 = Button(root, text = 'Очистить поля')     #кнопка для
 lbl1 = Label(root, text = 'Впишите ключевые слова для поиска')      #надпись для поиска
 lbl2 = Label(root, text = '')                   #надпись для вывода процента парсинга
 lbl3 = Label(root, text = '')
-
 def main(event):
+    page = 1
+def main2(event):
 #запуск функции с передачей переменной event (для работы виджетов)
     page_count = get_page_count(get_html(BASE_URL))
 #переменную присваиваем функции пересчета страниц, где сначала выполняется другая функция, получающая http-адрес от переменной BASE_URL
