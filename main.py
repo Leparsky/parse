@@ -1,4 +1,8 @@
 #https://habr.com/post/322608/
+#https://habr.com/post/250921/
+from selenium import webdriver
+import selenium.common.exceptions
+from selenium.webdriver.common.keys import Keys
 import requests  # осуществляет работу с HTTP-запросами
 import urllib.request  # библиотека HTTP
 from lxml import html  # библиотека для обработки разметки xml и html, импортируем только для работы с html
@@ -10,8 +14,9 @@ from tkinter.filedialog import *  # диалоговые окна
 global proxy1     #объвляем глобальную переменную для запоминания прокси на следующий проход цикла
 proxy1 = ''       #и приравниваем к пустому тексту
 #BASE_URL = 'https://ajento.ru/'     #адрес сайта для парсинга
-BASE_URL = 'https://ajento.ru/'     #адрес сайта для парсинга
+BASE_URL = 'https://ajento.ru'     #адрес сайта для парсинга
 numproxy  =-1    #текущий номер прокси изсписка
+pagesproxycount =0 #количество страниц , полученных через текущий прокси
 proxy = None
 
 root = Tk()                                    #главное окно
@@ -28,10 +33,9 @@ lbl3 = Label(root, text = '')
 
 def get_bsoup_proxy(url) :
     global proxy1
-    proxy1 = proxy.get_proxy()# получить proxy-адрес
-    global numproxy
-    numproxy+=1
-    if numproxy==15 : proxy1 = proxy.get_proxy()# получить proxy-адрес
+    global pagesproxycount
+    pagesproxycount+=1
+    if pagesproxycount>=15 : proxy1 = proxy.get_proxy()# получить proxy-адрес
     lbl4.update()
 # обновляем виджет
     lbl4.config(text='Прокси: ' + proxy1)
@@ -39,9 +43,11 @@ def get_bsoup_proxy(url) :
     recieved = False
     #страница не получена
     while not recieved :
-
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:45.0) Gecko/20100101 Firefox/45.0'
+        }
         try:  # обработчик исключительных ситуаций
-            r = requests.get(BASE_URL , proxies={'https': proxy1})
+            r = requests.get(url , proxies={'https': proxy1},headers = headers )
             parsing = BeautifulSoup(r.content, "lxml")
             # получаем данные со страницы сайта
             # вызываем функцию сохранения данных в csv, передаем туда массив projects
@@ -51,7 +57,7 @@ def get_bsoup_proxy(url) :
             print(e)
             proxy1 = proxy.get_proxy()
             # сменим прокси
-            numproxy = 0
+            pagesproxycount = 0
             #и обнулим счетчик
             recieved = False
         except requests.exceptions.ConnectionError as e:
@@ -61,46 +67,151 @@ def get_bsoup_proxy(url) :
             # сделана попытка доступа к сокету методом, запрещенным правами доступа
             print(e)
         except requests.exceptions.HTTPError as e:
-            # сделана попытка доступа к сокету методом, запрещенным правами доступа
+            # HTTPError
             print(e)
     return parsing
+#https://gist.github.com/tushortz/cba8b25f9d80f584f807b65890f37be5
+def get_proxies(co=co):
+    driver = webdriver.Chrome(chrome_options=co)
+    driver.get("https://free-proxy-list.net/")
+
+    PROXIES = []
+    proxies = driver.find_elements_by_css_selector("tr[role='row']")
+    for p in proxies:
+        result = p.text.split(" ")
+
+        if result[-1] == "yes":
+            PROXIES.append(result[0]+":"+result[1])
+
+    driver.close()
+    return PROXIES
+
+
+ALL_PROXIES = get_proxies()
+
+
+def proxy_driver(PROXIES, co=co):
+    prox = Proxy()
+
+    if PROXIES:
+        pxy = PROXIES[-1]
+    else:
+        print("--- Proxies used up (%s)" % len(PROXIES))
+        PROXIES = get_proxies()
+
+    prox.proxy_type = ProxyType.MANUAL
+    prox.http_proxy = pxy
+    prox.socks_proxy = pxy
+    prox.ssl_proxy = pxy
+
+    capabilities = webdriver.DesiredCapabilities.CHROME
+    prox.add_to_capabilities(capabilities)
+
+    driver = webdriver.Chrome(chrome_options=co, desired_capabilities=capabilities)
+
+    return driver
 
 def main(event):
-
+    global proxy
     lstCatPages=[]
     #страницы каталога
-    global proxy
+
     # присваиваем классу
     proxy = Proxy()
-    '''
+    proxy1 = proxy.get_proxy()  # получить proxy-адрес
+    ''' 
     bsObj=get_bsoup_proxy(BASE_URL)
     #получаем главную страницу сайта
     for kat in bsObj.findAll("a",{"class":"cs-menu__link"}) :
-        lstCatPages.append([kat.attrs["href"],kat.get_text()])
-    #добавляем в список верхние меню
+        lstCatPages.append(kat.attrs["href"])  if kat.attrs["href"] not in lstCatPages else None
+    #добавляем в список верхние меню, проверяем задвоение
     for kat in bsObj.findAll("a",{"class":"cs-sub-menu__link"}) :
-        lstCatPages.append([kat.attrs["href"],kat.get_text()])
-    #добавляем в список вложеные подменю
+        lstCatPages.append(kat.attrs["href"]) if kat.attrs["href"] not in lstCatPages else None
+    #добавляем в список вложеные подменю проверяем задвоение
     '''
+
+    lstCatPages.append("/g20508555-ajento-kurtki-optom")
+    #lstCatPages.append("/g21160870-ajento-rubashki")
+    #для тэста
     lstGoodPages = []
-    # страницы каталога
-    lstCatPages.append(["/g21160870-ajento-rubashki","Kat1"])
-    lstCatPages.append(["/g20508692-ajento-vesennie-parki", "Kat2"])
+    # страницы каталога товаров
+    '''
     for page in lstCatPages:
-        bsObj = get_bsoup_proxy(BASE_URL+page[0])
-        for kat in bsObj.findAll("a", {"class": "cs-product-gallery__image-link"}):
-            lstCatPages.append([kat.attrs["href"], page[0]])
-            #добавляем в список ссылку, название, название каталога
+        bsObj = get_bsoup_proxy(BASE_URL+page)
+        for kat in bsObj.findAll("a", {"class": "cs-goods-title"}):
+            lstGoodPages.append(kat.attrs["href"]) if kat.attrs["href"] not in lstGoodPages else None
+            #добавляем в список товаров ссылку,если такой ссылки нет
+            lbl3.config(text='Всего найдено страниц: ' + str(len(lstGoodPages)))
+        for kat in bsObj.findAll("a", {"class": "b-pager__link"}):
+            lstCatPages.append(kat.attrs["href"]) if kat.attrs["href"] not in lstCatPages else None
+    '''
+    lstGoodPages.append("https://ajento.ru/p336841792-ajento-muzhskoj-bomber.html")
+    url   = ""#url
+    cost  = ""# Цена
+    size  = ""# Размер
+    art   = ""# Артикул
+    color = ""# Цвет
+    edizm = ""# Единица    измерения
+    descr = ""# // Описание
+    album = ""# // Альбом
+    position = ""# Позиция
+    picture = ""# // Ссылка на картинку
+    name = ""# Название
+
+    pagesproxycount = 30
+    for page in lstGoodPages:
+        #driver = webdriver.Firefox()
+        pagesproxycount+=1
+        if pagesproxycount>30:
+            pagesproxycount=0
+            get_bsoup_proxy(page)
+            #вызов для проверки прокси
+            chrome_options = webdriver.ChromeOptions()
+            chrome_options.add_argument('--proxy-server=%s' % proxy1)
+            driver = webdriver.Chrome(chrome_options=chrome_options)
+
+
+        driver.maximize_window()
+        driver.get(page)
+        url = page
+        #cost = bsObj.find("span", {"data-qaid": "product_price"}).get_text()
+        #for sz in bsObj.find("div", {"class": "b-custom-drop-down"}):
+        #    size+=sz.get_text()+','
+        #art=bsObj.find("span", {"data-qaid": "product_code"}).get_text()
+        #name=bsObj.findAll("span", {"data-qaid": "product_code"})
+        element = driver.find_element_by_xpath("//p[@class='b-product-cost__price']")
+        cost=(element.text)
+
+        for element in driver.find_elements_by_xpath("//li[ @class='b-custom-drop-down__list-item']"):
+            size+=element.get_attribute("innerHTML")+','
+
+        element = driver.find_element_by_xpath("//h1[@class='cs-title cs-title_type_product cs-online-edit']/span")
+        name = (element.text)
+
+        element = driver.find_element_by_xpath("//li[@class='b-product-data__item b-product-data__item_type_sku']/span")
+        art = (element.text)
+        try:
+            element = driver.find_element_by_xpath("//li[@class='b-product-data__item b-product-data__item_type_available']")
+            descr = (element.text)+' , '
+        except selenium.common.exceptions.NoSuchElementException:
+            None
+        try:
+                element = driver.find_element_by_xpath("//li[@class='b-product-data__item b-product-data__item_type_selling']")
+                descr += (element.text)
+        except selenium.common.exceptions.NoSuchElementException:
+                None
+        try:
+            element = driver.find_element_by_xpath("//p[@class='b-product-cost__min-order']")
+            descr += (element.text)
+        except selenium.common.exceptions.NoSuchElementException:
+            None
 
 
 
 
 
+        #/ ul[@ class ='b-custom-drop-down__list']
 
-
-
-
-# сделана попытка доступа к сокету методом, запрещенным правами доступа
 def main2(event):
 #запуск функции с передачей переменной event (для работы виджетов)
     page_count = get_page_count(get_html(BASE_URL))
