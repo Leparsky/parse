@@ -2,7 +2,10 @@
 #https://habr.com/post/250921/
 from selenium import webdriver
 import selenium.common.exceptions
-from selenium.webdriver.common.keys import Keys
+running = True
+from selenium.webdriver.chrome.options import DesiredCapabilities
+from selenium.webdriver.common.proxy import Proxy, ProxyType
+
 import requests  # осуществляет работу с HTTP-запросами
 import urllib.request  # библиотека HTTP
 from lxml import html  # библиотека для обработки разметки xml и html, импортируем только для работы с html
@@ -11,6 +14,7 @@ from bs4 import BeautifulSoup  # осуществляет синтаксичес
 import csv  # осуществляет запись файла в формате CSV
 import tkinter  # создание интерфейса
 from tkinter.filedialog import *  # диалоговые окна
+from openpyxl import Workbook
 global proxy1     #объвляем глобальную переменную для запоминания прокси на следующий проход цикла
 proxy1 = ''       #и приравниваем к пустому тексту
 #BASE_URL = 'https://ajento.ru/'     #адрес сайта для парсинга
@@ -71,7 +75,10 @@ def get_bsoup_proxy(url) :
             print(e)
     return parsing
 #https://gist.github.com/tushortz/cba8b25f9d80f584f807b65890f37be5
-def get_proxies(co=co):
+def get_proxies():
+    co = webdriver.ChromeOptions()
+    co.add_argument("log-level=3")
+    co.add_argument("--headless")
     driver = webdriver.Chrome(chrome_options=co)
     driver.get("https://free-proxy-list.net/")
 
@@ -87,10 +94,13 @@ def get_proxies(co=co):
     return PROXIES
 
 
-ALL_PROXIES = get_proxies()
 
 
-def proxy_driver(PROXIES, co=co):
+
+def proxy_driver(PROXIES):
+    co = webdriver.ChromeOptions()
+    co.add_argument("log-level=3")
+    #co.add_argument("--headless")
     prox = Proxy()
 
     if PROXIES:
@@ -117,7 +127,7 @@ def main(event):
     #страницы каталога
 
     # присваиваем классу
-    proxy = Proxy()
+    proxy = Proxy1()
     proxy1 = proxy.get_proxy()  # получить proxy-адрес
     ''' 
     bsObj=get_bsoup_proxy(BASE_URL)
@@ -157,10 +167,33 @@ def main(event):
     position = ""# Позиция
     picture = ""# // Ссылка на картинку
     name = ""# Название
-
+    wb = Workbook()
+    ws = wb.active
     pagesproxycount = 30
+    ws.cell(column=1+0, row=1, value="ID")
+    ws.cell(column=1+1, row=1, value="Название")
+    ws.cell(column=1+2, row=1, value="Оригинальное")
+    ws.cell(column=1+3, row=1, value="название")
+    ws.cell(column=1+4, row=1, value="Цена")
+    ws.cell(column=1+5, row=1, value="Количество")
+    ws.cell(column=1+6, row=1, value="Размер")
+    ws.cell(column=1+7, row=1, value="Артикул")
+    ws.cell(column=1+8, row=1, value="Цвет")
+    ws.cell(column=1+9, row=1, value="Единица измерения")
+    ws.cell(column=1+10, row=1, value="Описание")
+    ws.cell(column=1+11, row=1, value="Фотография")
+    ws.cell(column=1+12, row=1, value="Альбом")
+    ws.cell(column=1+13, row=1, value="Позиция")
+    ws.cell(column=1+14, row=1, value="Отображать комментарий")
+    ws.cell(column=1+15, row=1, value="Отображать в каталоге")
+    ws.cell(column=1+16, row=1, value="Включить ряды")
+    ws.cell(column=1+17, row=1, value="Ссылка на источник")
+    ws.cell(column=1+18, row=1, value="Обновить фото")
+
+
+    i=1
     for page in lstGoodPages:
-        #driver = webdriver.Firefox()
+        ''''#driver = webdriver.Firefox()
         pagesproxycount+=1
         if pagesproxycount>30:
             pagesproxycount=0
@@ -169,16 +202,26 @@ def main(event):
             chrome_options = webdriver.ChromeOptions()
             chrome_options.add_argument('--proxy-server=%s' % proxy1)
             driver = webdriver.Chrome(chrome_options=chrome_options)
-
-
+         '''
+        ALL_PROXIES = get_proxies()
+        driver = proxy_driver(ALL_PROXIES)
         driver.maximize_window()
-        driver.get(page)
+        running = True
+        while running:
+            try:
+                driver.get(page)
+                i+=1
+                running = False
+            except:
+                new = ALL_PROXIES.pop()
+                # reassign driver if fail to switch proxy
+                pd = proxy_driver(ALL_PROXIES)
+                print("--- Switched proxy to: %s" % new)
+                time.sleep(1)
+
+
         url = page
-        #cost = bsObj.find("span", {"data-qaid": "product_price"}).get_text()
-        #for sz in bsObj.find("div", {"class": "b-custom-drop-down"}):
-        #    size+=sz.get_text()+','
-        #art=bsObj.find("span", {"data-qaid": "product_code"}).get_text()
-        #name=bsObj.findAll("span", {"data-qaid": "product_code"})
+
         element = driver.find_element_by_xpath("//p[@class='b-product-cost__price']")
         cost=(element.text)
 
@@ -205,7 +248,23 @@ def main(event):
             descr += (element.text)
         except selenium.common.exceptions.NoSuchElementException:
             None
-
+        try:
+            element = driver.find_element_by_xpath("//img[@class='cs-product-image__img']")
+            picture += element.get_attribute("src")
+        except selenium.common.exceptions.NoSuchElementException:
+            None
+        ws.cell(column=1+1, row=i, value=name)
+        ws.cell(column=1+4, row=i, value=cost)
+        ws.cell(column=1+6, row=i, value=size)
+        ws.cell(column=1+7, row=i, value=art)
+        ws.cell(column=1+8, row=i, value=color)
+        ws.cell(column=1+9, row=i, value=edizm)
+        ws.cell(column=1+10,row=i, value=descr)
+        ws.cell(column=1+12,row=i, value=album)
+        ws.cell(column=1+13,row=i, value=i - 1)
+        ws.cell(column=1+17,row=i, value=picture)
+        ws.cell(column=1+18,row=i, value=url)
+    wb.save(filename="c:\\tmp\\example.xlsx")
 
 
 
@@ -290,7 +349,7 @@ def get_page_count(html):
    return int(var2)
 #возвращаем переменную как числовой тип данных
 
-class Proxy:
+class Proxy1:
     # создаем класс
     proxy_url = 'http://www.ip-adress.com/proxy_list/'
     # переменной присваиваем ссылку сайта, выставляющего прокси-сервера
